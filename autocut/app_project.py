@@ -114,10 +114,15 @@ def project_from_subtitles(
 ) -> AutoCutProject:
     selections = selections or {}
     subtitle_items = sorted(subtitles, key=lambda item: item.start)
-    silence_ranges = _subtitle_gap_ranges(subtitle_items, duration) + (
-        silence_ranges or []
+    speech_ranges = [
+        (subtitle.start.total_seconds(), subtitle.end.total_seconds())
+        for subtitle in subtitle_items
+        if _segment_kind(subtitle.content) != "silence"
+    ]
+    detected_silence_ranges = _subtract_range_list(silence_ranges or [], speech_ranges)
+    silence_ranges = (
+        _subtitle_gap_ranges(subtitle_items, duration) + detected_silence_ranges
     )
-
     for subtitle in subtitle_items:
         if _segment_kind(subtitle.content) == "silence":
             silence_ranges.append(
@@ -144,26 +149,20 @@ def project_from_subtitles(
             continue
         start = subtitle.start.total_seconds()
         end = subtitle.end.total_seconds()
-        speech_ranges = _subtract_ranges(start, end, silences)
-        text_parts = _split_text_by_weights(
-            text,
-            [speech_end - speech_start for speech_start, speech_end in speech_ranges],
-        )
         selected = selections.get(subtitle.index, True)
-        for (speech_start, speech_end), text_part in zip(speech_ranges, text_parts):
-            if speech_end <= speech_start:
-                continue
-            segments.append(
-                ProjectSegment(
-                    id=_segment_id(),
-                    start=speech_start,
-                    end=speech_end,
-                    text=text_part,
-                    selected=selected,
-                    kind="speech",
-                    sourceIndex=subtitle.index,
-                )
+        if end <= start:
+            continue
+        segments.append(
+            ProjectSegment(
+                id=_segment_id(),
+                start=start,
+                end=end,
+                text=text,
+                selected=selected,
+                kind="speech",
+                sourceIndex=subtitle.index,
             )
+        )
 
     segments.sort(
         key=lambda segment: (segment.start, 0 if segment.kind == "speech" else 1)
@@ -236,46 +235,13 @@ def _subtract_ranges(
     ]
 
 
-def _split_text_by_weights(text: str, weights: List[float]) -> List[str]:
-    stripped = text.strip()
-    if len(weights) <= 1:
-        return [stripped] if weights else []
-
-    total_weight = sum(max(0.0, weight) for weight in weights)
-    if total_weight <= 0:
-        return [stripped for _ in weights]
-
-    words = stripped.split()
-    if len(words) > 1:
-        parts: List[str] = []
-        cursor = 0
-        for index, weight in enumerate(weights):
-            if index == len(weights) - 1:
-                next_cursor = len(words)
-            else:
-                next_cursor = max(
-                    cursor + 1,
-                    round(sum(weights[: index + 1]) / total_weight * len(words)),
-                )
-                next_cursor = min(next_cursor, len(words) - (len(weights) - index - 1))
-            parts.append(" ".join(words[cursor:next_cursor]).strip())
-            cursor = next_cursor
-        return parts
-
-    parts = []
-    cursor = 0
-    for index, weight in enumerate(weights):
-        if index == len(weights) - 1:
-            next_cursor = len(stripped)
-        else:
-            next_cursor = max(
-                cursor + 1,
-                round(sum(weights[: index + 1]) / total_weight * len(stripped)),
-            )
-            next_cursor = min(next_cursor, len(stripped) - (len(weights) - index - 1))
-        parts.append(stripped[cursor:next_cursor].strip())
-        cursor = next_cursor
-    return parts
+def _subtract_range_list(
+    ranges: List[Tuple[float, float]], cuts: List[Tuple[float, float]]
+) -> List[Tuple[float, float]]:
+    remaining: List[Tuple[float, float]] = []
+    for start, end in ranges:
+        remaining.extend(_subtract_ranges(start, end, cuts))
+    return remaining
 
 
 def project_from_srt_md(

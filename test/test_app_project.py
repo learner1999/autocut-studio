@@ -168,7 +168,7 @@ class TestAppProject(unittest.TestCase):
         self.assertTrue(project.segments[1].selected)
         self.assertEqual(project.segments[1].text, "< No Speech >")
 
-    def test_project_from_subtitles_splits_speech_around_detected_silence(self):
+    def test_project_from_subtitles_preserves_speech_over_detected_silence(self):
         subtitles = [
             srt.Subtitle(
                 index=1,
@@ -187,14 +187,43 @@ class TestAppProject(unittest.TestCase):
 
         self.assertEqual(
             [segment.kind for segment in project.segments],
+            ["speech"],
+        )
+        self.assertAlmostEqual(project.segments[0].start, 0)
+        self.assertAlmostEqual(project.segments[0].end, 6)
+        self.assertEqual(project.segments[0].text, "one two three four five six")
+
+    def test_project_from_subtitles_inserts_detected_silence_between_subtitles(self):
+        subtitles = [
+            srt.Subtitle(
+                index=1,
+                start=timedelta(seconds=0),
+                end=timedelta(seconds=1),
+                content="hello",
+            ),
+            srt.Subtitle(
+                index=2,
+                start=timedelta(seconds=2),
+                end=timedelta(seconds=3),
+                content="again",
+            ),
+        ]
+
+        project = project_from_subtitles(
+            media_path=os.path.join(TEST_MEDIA_PATH, "test005.mp3"),
+            duration=3,
+            subtitles=subtitles,
+            silence_ranges=[(1.05, 1.9)],
+        )
+
+        self.assertEqual(
+            [segment.kind for segment in project.segments],
             ["speech", "silence", "speech"],
         )
-        self.assertAlmostEqual(project.segments[0].end, 2)
-        self.assertAlmostEqual(project.segments[1].start, 2)
-        self.assertAlmostEqual(project.segments[1].end, 4)
-        self.assertAlmostEqual(project.segments[2].start, 4)
-        self.assertTrue(project.segments[0].text)
-        self.assertTrue(project.segments[2].text)
+        self.assertAlmostEqual(project.segments[1].start, 1.05)
+        self.assertAlmostEqual(project.segments[1].end, 1.9)
+        self.assertEqual(project.segments[0].text, "hello")
+        self.assertEqual(project.segments[2].text, "again")
 
     def test_detect_silence_ranges_finds_local_low_energy_gap(self):
         sampling_rate = 1000
