@@ -193,6 +193,39 @@ class TestAppProject(unittest.TestCase):
         self.assertAlmostEqual(project.segments[0].end, 6)
         self.assertEqual(project.segments[0].text, "one two three four five six")
 
+    def test_project_from_subtitles_peels_detected_silence_from_speech_edges(self):
+        subtitles = [
+            srt.Subtitle(
+                index=1,
+                start=timedelta(seconds=0),
+                end=timedelta(seconds=8),
+                content="one complete sentence",
+            )
+        ]
+
+        project = project_from_subtitles(
+            media_path=os.path.join(TEST_MEDIA_PATH, "test005.mp3"),
+            duration=8,
+            subtitles=subtitles,
+            selections={1: False},
+            silence_ranges=[(0, 1.1), (6.2, 8)],
+        )
+
+        self.assertEqual(
+            [segment.kind for segment in project.segments],
+            ["silence", "speech", "silence"],
+        )
+        self.assertAlmostEqual(project.segments[0].start, 0)
+        self.assertAlmostEqual(project.segments[0].end, 1.1)
+        self.assertAlmostEqual(project.segments[1].start, 1.1)
+        self.assertAlmostEqual(project.segments[1].end, 6.2)
+        self.assertAlmostEqual(project.segments[2].start, 6.2)
+        self.assertAlmostEqual(project.segments[2].end, 8)
+        self.assertEqual(project.segments[1].text, "one complete sentence")
+        self.assertFalse(project.segments[1].selected)
+        self.assertTrue(project.segments[0].selected)
+        self.assertTrue(project.segments[2].selected)
+
     def test_project_from_subtitles_inserts_detected_silence_between_subtitles(self):
         subtitles = [
             srt.Subtitle(

@@ -10,6 +10,9 @@ import srt
 
 PROJECT_VERSION = 1
 MIN_SPLIT_DURATION = 0.30
+EDGE_SILENCE_MIN_DURATION = 0.80
+EDGE_SILENCE_BOUNDARY_TOLERANCE = 0.25
+EDGE_SPEECH_MIN_DURATION = 0.30
 
 
 @dataclasses.dataclass
@@ -114,20 +117,31 @@ def project_from_subtitles(
 ) -> AutoCutProject:
     selections = selections or {}
     subtitle_items = sorted(subtitles, key=lambda item: item.start)
-    speech_ranges = [
-        (subtitle.start.total_seconds(), subtitle.end.total_seconds())
-        for subtitle in subtitle_items
-        if _segment_kind(subtitle.content) != "silence"
-    ]
-    detected_silence_ranges = _subtract_range_list(silence_ranges or [], speech_ranges)
-    silence_ranges = (
-        _subtitle_gap_ranges(subtitle_items, duration) + detected_silence_ranges
-    )
+    detected_silences = _normalize_ranges(silence_ranges or [], duration)
+
+    speech_items: List[Tuple[srt.Subtitle, float, float]] = []
+    explicit_silence_ranges: List[Tuple[float, float]] = []
     for subtitle in subtitle_items:
+        start = subtitle.start.total_seconds()
+        end = subtitle.end.total_seconds()
         if _segment_kind(subtitle.content) == "silence":
-            silence_ranges.append(
-                (subtitle.start.total_seconds(), subtitle.end.total_seconds())
-            )
+            explicit_silence_ranges.append((start, end))
+            continue
+        trimmed_start, trimmed_end = _trim_range_edges_to_silence(
+            start,
+            end,
+            detected_silences,
+        )
+        speech_items.append((subtitle, trimmed_start, trimmed_end))
+
+    speech_ranges = [(start, end) for _, start, end in speech_items if end > start]
+    occupied_ranges = speech_ranges + explicit_silence_ranges
+    detected_silence_ranges = _subtract_range_list(detected_silences, speech_ranges)
+    silence_ranges = (
+        _gap_ranges_from_ranges(occupied_ranges, duration)
+        + detected_silence_ranges
+        + explicit_silence_ranges
+    )
 
     silences = _normalize_ranges(silence_ranges, duration)
     segments: List[ProjectSegment] = [
@@ -143,12 +157,8 @@ def project_from_subtitles(
         for start, end in silences
     ]
 
-    for subtitle in subtitle_items:
+    for subtitle, start, end in speech_items:
         text = subtitle.content.strip()
-        if _segment_kind(text) == "silence":
-            continue
-        start = subtitle.start.total_seconds()
-        end = subtitle.end.total_seconds()
         selected = selections.get(subtitle.index, True)
         if end <= start:
             continue
@@ -179,11 +189,21 @@ def project_from_subtitles(
 def _subtitle_gap_ranges(
     subtitles: List[srt.Subtitle], duration: float
 ) -> List[Tuple[float, float]]:
+    return _gap_ranges_from_ranges(
+        [
+            (subtitle.start.total_seconds(), subtitle.end.total_seconds())
+            for subtitle in subtitles
+        ],
+        duration,
+    )
+
+
+def _gap_ranges_from_ranges(
+    occupied_ranges: List[Tuple[float, float]], duration: float
+) -> List[Tuple[float, float]]:
     ranges: List[Tuple[float, float]] = []
     cursor = 0.0
-    for subtitle in subtitles:
-        start = subtitle.start.total_seconds()
-        end = subtitle.end.total_seconds()
+    for start, end in sorted(occupied_ranges):
         if start > cursor + 1.0:
             ranges.append((cursor, start))
         cursor = max(cursor, end)
@@ -242,6 +262,38 @@ def _subtract_range_list(
     for start, end in ranges:
         remaining.extend(_subtract_ranges(start, end, cuts))
     return remaining
+
+
+def _trim_range_edges_to_silence(
+    start: float,
+    end: float,
+    silences: List[Tuple[float, float]],
+    min_silence: float = EDGE_SILENCE_MIN_DURATION,
+    boundary_tolerance: float = EDGE_SILENCE_BOUNDARY_TOLERANCE,
+    min_speech_duration: float = EDGE_SPEECH_MIN_DURATION,
+) -> Tuple[float, float]:
+    trimmed_start = start
+    trimmed_end = end
+    for silence_start, silence_end in silences:
+        overlap_start = max(start, silence_start)
+        overlap_end = min(end, silence_end)
+        overlap_duration = overlap_end - overlap_start
+        if overlap_duration < min_silence:
+            continue
+        if (
+            overlap_start <= start + boundary_tolerance
+            and overlap_end <= end - min_speech_duration
+        ):
+            trimmed_start = max(trimmed_start, overlap_end)
+        if (
+            overlap_end >= end - boundary_tolerance
+            and overlap_start >= start + min_speech_duration
+        ):
+            trimmed_end = min(trimmed_end, overlap_start)
+
+    if trimmed_end - trimmed_start < min_speech_duration:
+        return start, end
+    return trimmed_start, trimmed_end
 
 
 def project_from_srt_md(
