@@ -55,6 +55,11 @@ struct AutoCutStudioApp: App {
                     store.requestTimelineScroll(to: store.playheadTime)
                 }
 
+                Button("Uncheck All Silence") {
+                    store.deselectSilenceSegments()
+                }
+                .disabled(!store.canDeselectSilenceSegments || store.isWorking)
+
                 Button("Retranscribe Segment") {
                     Task { await store.retranscribeSelectedSegment() }
                 }

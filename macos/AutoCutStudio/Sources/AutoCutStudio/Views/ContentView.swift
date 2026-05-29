@@ -63,6 +63,14 @@ struct ContentView: View {
             .disabled(store.project == nil || store.isWorking)
 
             Button {
+                store.deselectSilenceSegments()
+            } label: {
+                Label("Cut Silence", systemImage: "speaker.slash")
+            }
+            .disabled(!store.canDeselectSilenceSegments || store.isWorking)
+            .help("Uncheck all silence segments")
+
+            Button {
                 togglePlayback()
             } label: {
                 Label(player.isPlaying ? "Pause" : "Play", systemImage: player.isPlaying ? "pause.fill" : "play.fill")

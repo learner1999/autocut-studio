@@ -36,6 +36,10 @@ final class ProjectStore: ObservableObject {
         project != nil
     }
 
+    var canDeselectSilenceSegments: Bool {
+        project?.segments.contains { $0.kind == .silence && $0.selected } ?? false
+    }
+
     func importAudio(_ url: URL) async {
         await runTask("Probing audio...") {
             let probe = try await backend.probe(mediaURL: url)
@@ -213,6 +217,22 @@ final class ProjectStore: ObservableObject {
         self.project = project
         selectedSegmentID = right.id
         statusMessage = "Split segment at \(TimeFormatters.clockWithTenths(playheadTime))."
+    }
+
+    func deselectSilenceSegments() {
+        guard var project else { return }
+        var changedCount = 0
+        for index in project.segments.indices where project.segments[index].kind == .silence && project.segments[index].selected {
+            project.segments[index].selected = false
+            changedCount += 1
+        }
+        guard changedCount > 0 else {
+            statusMessage = "All silence segments are already unchecked."
+            return
+        }
+        self.project = project
+        let label = changedCount == 1 ? "silence segment" : "silence segments"
+        statusMessage = "Unchecked \(changedCount) \(label)."
     }
 
     func playbackRanges() -> [PlaybackRange] {

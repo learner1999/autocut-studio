@@ -51,6 +51,26 @@ final class AutoCutStudioTests: XCTestCase {
     }
 
     @MainActor
+    func testDeselectSilenceSegmentsOnlyUnchecksSelectedSilence() {
+        let store = ProjectStore()
+        store.project = fixtureProject(segments: [
+            segment(start: 0, end: 2, selected: true),
+            segment(start: 2, end: 3, selected: true, kind: .silence),
+            segment(start: 3, end: 4, selected: false, kind: .silence),
+            segment(start: 4, end: 6, selected: false),
+        ])
+
+        XCTAssertTrue(store.canDeselectSilenceSegments)
+
+        store.deselectSilenceSegments()
+
+        let segments = store.project?.segments ?? []
+        XCTAssertEqual(segments.map(\.selected), [true, false, false, false])
+        XCTAssertFalse(store.canDeselectSilenceSegments)
+        XCTAssertEqual(store.statusMessage, "Unchecked 1 silence segment.")
+    }
+
+    @MainActor
     func testSegmentLookupSelectsSourceTime() {
         let store = ProjectStore()
         let first = segment(start: 0, end: 2, selected: true)
