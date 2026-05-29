@@ -154,6 +154,13 @@ final class AutoCutStudioTests: XCTestCase {
     }
 
     @MainActor
+    func testWaveformSampleCountScalesWithPodcastDuration() {
+        XCTAssertEqual(ProjectStore.waveformSampleCount(for: 30), 2400)
+        XCTAssertEqual(ProjectStore.waveformSampleCount(for: 300), 6000)
+        XCTAssertEqual(ProjectStore.waveformSampleCount(for: 10_000), 120_000)
+    }
+
+    @MainActor
     func testTimelineScrollRequestClampsTimeAndRefreshesID() throws {
         let store = ProjectStore()
         store.project = fixtureProject(segments: [segment(start: 0, end: 2, selected: true)])

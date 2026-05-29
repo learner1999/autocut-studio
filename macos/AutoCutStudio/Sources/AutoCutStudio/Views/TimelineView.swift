@@ -108,7 +108,7 @@ struct TimelineView: View {
         let step = width / CGFloat(store.waveform.count)
         var path = Path()
         for (index, peak) in store.waveform.enumerated() {
-            let x = CGFloat(index) * step
+            let x = (CGFloat(index) + 0.5) * step
             let amplitude = CGFloat(min(max(peak, 0), 1)) * height * 0.46
             path.move(to: CGPoint(x: x, y: midY - amplitude))
             path.addLine(to: CGPoint(x: x, y: midY + amplitude))

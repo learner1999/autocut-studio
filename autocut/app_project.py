@@ -13,6 +13,7 @@ MIN_SPLIT_DURATION = 0.30
 EDGE_SILENCE_MIN_DURATION = 0.80
 EDGE_SILENCE_BOUNDARY_TOLERANCE = 0.25
 EDGE_SPEECH_MIN_DURATION = 0.30
+EDGE_SPEECH_GUARD = 0.15
 
 
 @dataclasses.dataclass
@@ -271,6 +272,7 @@ def _trim_range_edges_to_silence(
     min_silence: float = EDGE_SILENCE_MIN_DURATION,
     boundary_tolerance: float = EDGE_SILENCE_BOUNDARY_TOLERANCE,
     min_speech_duration: float = EDGE_SPEECH_MIN_DURATION,
+    speech_guard: float = EDGE_SPEECH_GUARD,
 ) -> Tuple[float, float]:
     trimmed_start = start
     trimmed_end = end
@@ -284,12 +286,12 @@ def _trim_range_edges_to_silence(
             overlap_start <= start + boundary_tolerance
             and overlap_end <= end - min_speech_duration
         ):
-            trimmed_start = max(trimmed_start, overlap_end)
+            trimmed_start = max(trimmed_start, max(start, overlap_end - speech_guard))
         if (
             overlap_end >= end - boundary_tolerance
             and overlap_start >= start + min_speech_duration
         ):
-            trimmed_end = min(trimmed_end, overlap_start)
+            trimmed_end = min(trimmed_end, min(end, overlap_start + speech_guard))
 
     if trimmed_end - trimmed_start < min_speech_duration:
         return start, end

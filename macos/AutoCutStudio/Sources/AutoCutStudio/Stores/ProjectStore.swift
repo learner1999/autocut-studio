@@ -8,6 +8,10 @@ struct TimelineScrollRequest: Equatable {
 
 @MainActor
 final class ProjectStore: ObservableObject {
+    private static let waveformSamplesPerSecond = 20.0
+    private static let minimumWaveformSamples = 2400
+    private static let maximumWaveformSamples = 120_000
+
     @Published var project: AutoCutProject?
     @Published var projectURL: URL?
     @Published var waveform: [Double] = []
@@ -40,6 +44,14 @@ final class ProjectStore: ObservableObject {
         project?.segments.contains { $0.kind == .silence && $0.selected } ?? false
     }
 
+    static func waveformSampleCount(for duration: Double) -> Int {
+        let durationBasedCount = Int(ceil(max(0, duration) * waveformSamplesPerSecond))
+        return min(
+            maximumWaveformSamples,
+            max(minimumWaveformSamples, durationBasedCount)
+        )
+    }
+
     func importAudio(_ url: URL) async {
         await runTask("Probing audio...") {
             let probe = try await backend.probe(mediaURL: url)
@@ -54,7 +66,10 @@ final class ProjectStore: ObservableObject {
             projectURL = nil
             selectedSegmentID = nil
             playheadTime = 0
-            waveform = try await backend.waveform(mediaURL: url)
+            waveform = try await backend.waveform(
+                mediaURL: url,
+                samples: Self.waveformSampleCount(for: probe.duration)
+            )
             statusMessage = "Loaded \(url.lastPathComponent). Ready to transcribe."
         }
     }
@@ -68,7 +83,10 @@ final class ProjectStore: ObservableObject {
             selectedSegmentID = project?.segments.first?.id
             playheadTime = project?.segments.first?.start ?? 0
             if let mediaURL {
-                waveform = try await backend.waveform(mediaURL: mediaURL)
+                waveform = try await backend.waveform(
+                    mediaURL: mediaURL,
+                    samples: Self.waveformSampleCount(for: loadedProject.duration)
+                )
             }
             statusMessage = "Opened \(url.lastPathComponent)."
         }
