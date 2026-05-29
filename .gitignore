@@ -8,6 +8,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+.build/
+**/.build/
 build/
 develop-eggs/
 dist/
@@ -128,3 +130,19 @@ dmypy.json
 # Pyre type checker
 .pyre/
 log/
+
+# macOS and editor metadata
+.DS_Store
+xcuserdata/
+*.xcuserstate
+
+# Local assistant/development workspace metadata
+.codex/
+
+# AutoCut Studio generated project and media artifacts
+*.autocutproj.json
+*_cut.mp3
+*_cut.mp4
+*_merged.mp4
+*_temp_*.wav
+*_compact.srt

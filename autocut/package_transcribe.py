@@ -8,6 +8,8 @@ import torch
 from . import utils, whisper_model
 from .type import WhisperMode, SPEECH_ARRAY_INDEX, WhisperModel, LANG
 
+# Modified for AutoCut Studio: VAD failures fall back to full-audio transcription.
+
 
 class Transcribe:
     def __init__(
@@ -54,18 +56,26 @@ class Transcribe:
             return [{"start": 0, "end": len(audio)}]
 
         tic = time.time()
-        if self.vad_model is None or self.detect_speech is None:
-            # torch load limit https://github.com/pytorch/vision/issues/4156
-            torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
-            self.vad_model, funcs = torch.hub.load(
-                repo_or_dir="snakers4/silero-vad", model="silero_vad", trust_repo=True
+        try:
+            if self.vad_model is None or self.detect_speech is None:
+                # torch load limit https://github.com/pytorch/vision/issues/4156
+                torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
+                self.vad_model, funcs = torch.hub.load(
+                    repo_or_dir="snakers4/silero-vad",
+                    model="silero_vad",
+                    trust_repo=True,
+                )
+
+                self.detect_speech = funcs[0]
+
+            speeches = self.detect_speech(
+                audio, self.vad_model, sampling_rate=self.sampling_rate
             )
-
-            self.detect_speech = funcs[0]
-
-        speeches = self.detect_speech(
-            audio, self.vad_model, sampling_rate=self.sampling_rate
-        )
+        except Exception as error:
+            logging.warning(
+                "VAD unavailable, falling back to full-audio transcription: %s", error
+            )
+            return [{"start": 0, "end": len(audio)}]
 
         # Remove too short segments
         speeches = utils.remove_short_segments(speeches, 1.0 * self.sampling_rate)

@@ -7,6 +7,8 @@ from moviepy import editor
 
 from . import utils
 
+# Modified for AutoCut Studio: audio exports can preserve configurable padding.
+
 
 # Merge videos
 class Merger:
@@ -129,6 +131,20 @@ class Cutter:
             media = editor.VideoFileClip(fns["media"])
         else:
             media = editor.AudioFileClip(fns["media"])
+
+        pad_head = getattr(self.args, "pad_head", 0.0) or 0.0
+        pad_tail = getattr(self.args, "pad_tail", 0.0) or 0.0
+        if pad_head or pad_tail:
+            segments = utils.expand_segments(
+                segments, pad_head, pad_tail, media.duration
+            )
+            for i in range(1, len(segments)):
+                if segments[i]["start"] < segments[i - 1]["end"]:
+                    segments[i]["start"] = segments[i - 1]["end"]
+            segments = [s for s in segments if s["end"] > s["start"]]
+            logging.info(
+                f"Kept {pad_head:.2f}s before and {pad_tail:.2f}s after each segment"
+            )
 
         # Add a fade between two clips. Not quite necessary. keep code here for reference
         # fade = 0

@@ -1,0 +1,17 @@
+AutoCut Studio
+
+This project is derived from AutoCut:
+https://github.com/mli/autocut
+
+AutoCut is licensed under the Apache License, Version 2.0.
+
+AutoCut Studio adds:
+- A native SwiftUI macOS audio editing application.
+- A JSON project model for podcast editing.
+- A Python JSON backend for probing, waveform extraction, transcription,
+  retranscription, and export.
+- Preview playback behavior that skips unchecked transcript segments.
+- Podcast-oriented padding behavior for silence cuts and exact behavior for
+  manual speech cuts.
+
+See LICENSE for the full Apache License, Version 2.0 text.

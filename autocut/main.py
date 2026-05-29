@@ -5,6 +5,8 @@ import os
 from . import utils
 from .type import WhisperMode, WhisperModel
 
+# Modified for AutoCut Studio: exposes padding controls for podcast-friendly cuts.
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -144,6 +146,18 @@ def main():
         help="The bitrate to export the cutted video, such as 10m, 1m, or 500k",
     )
     parser.add_argument(
+        "--pad-head",
+        type=float,
+        default=0.0,
+        help="Seconds of source media to keep before each cut segment",
+    )
+    parser.add_argument(
+        "--pad-tail",
+        type=float,
+        default=0.0,
+        help="Seconds of source media to keep after each cut segment",
+    )
+    parser.add_argument(
         "--vad", help="If or not use VAD", choices=["1", "0", "auto"], default="auto"
     )
     parser.add_argument(
@@ -163,6 +177,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.pad_head < 0 or args.pad_tail < 0:
+        parser.error("--pad-head and --pad-tail must be non-negative")
 
     if args.transcribe:
         from .transcribe import Transcribe
