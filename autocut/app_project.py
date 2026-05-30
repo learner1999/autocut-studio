@@ -1,3 +1,5 @@
+# Added for AutoCut Studio: structured podcast editing project model.
+
 import dataclasses
 import json
 import os

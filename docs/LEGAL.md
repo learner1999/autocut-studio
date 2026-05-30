@@ -44,7 +44,7 @@ configuration and enabled codecs.
 For a source-only public release, the current low-risk path is:
 
 - Keep this repository under Apache-2.0.
-- Keep `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md`.
+- Keep `LICENSE`, `NOTICE`, `CHANGES.md`, and `THIRD_PARTY_NOTICES.md`.
 - Make clear that this is derived from `mli/autocut`.
 - Do not commit private media or generated project files.
 - Do not bundle FFmpeg or model weights until their exact license obligations

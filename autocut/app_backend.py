@@ -1,3 +1,5 @@
+# Added for AutoCut Studio: JSON backend used by the native macOS app.
+
 import argparse
 from contextlib import redirect_stdout
 import json

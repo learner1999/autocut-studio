@@ -135,8 +135,12 @@ This repository is derived from
 [mli/autocut](https://github.com/mli/autocut), which is licensed under the
 Apache License 2.0. AutoCut Studio keeps the same Apache-2.0 license.
 
-The root [LICENSE](LICENSE) file contains the Apache-2.0 terms. Attribution and
-third-party dependency notes are in [NOTICE](NOTICE) and
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+This is an independent derivative project. It is not affiliated with or
+endorsed by the original AutoCut maintainers unless explicitly stated by those
+maintainers.
+
+The root [LICENSE](LICENSE) file contains the Apache-2.0 terms. Attribution,
+modification, and third-party dependency notes are in [NOTICE](NOTICE),
+[CHANGES.md](CHANGES.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 This project wraps AutoCut, not Autodesk AutoCAD.

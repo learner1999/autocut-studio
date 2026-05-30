@@ -1,3 +1,6 @@
+# Modified for AutoCut Studio: package version and public exports for this
+# derivative desktop app.
+
 __version__ = "0.1.0"
 
 from .type import LANG, WhisperModel, WhisperMode

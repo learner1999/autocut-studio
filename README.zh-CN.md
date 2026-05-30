@@ -129,7 +129,11 @@ macOS App MVP 默认不使用这个模式；只有你手动启用它时，音频
 本项目派生自 [mli/autocut](https://github.com/mli/autocut)。AutoCut 使用
 Apache License 2.0，本项目继续使用 Apache-2.0。
 
-根目录的 [LICENSE](LICENSE) 是完整许可证文本。上游归属和第三方依赖说明见
-[NOTICE](NOTICE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+这是一个独立的衍生项目。除非原 AutoCut 维护者明确说明，否则本项目不代表原项目，
+也不表示获得原项目维护者背书。
+
+根目录的 [LICENSE](LICENSE) 是完整许可证文本。上游归属、修改说明和第三方依赖
+说明见 [NOTICE](NOTICE)、[CHANGES.md](CHANGES.md) 和
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 本项目包装的是 AutoCut，不是 Autodesk AutoCAD。
