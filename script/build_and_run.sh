@@ -1,55 +1,35 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="AutoCutStudio"
 BUNDLE_ID="com.local.AutoCutStudio"
-MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACKAGE_DIR="$ROOT_DIR/macos/AutoCutStudio"
-DIST_DIR="$ROOT_DIR/dist"
-APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-APP_CONTENTS="$APP_BUNDLE/Contents"
-APP_MACOS="$APP_CONTENTS/MacOS"
-APP_BINARY="$APP_MACOS/$APP_NAME"
-INFO_PLIST="$APP_CONTENTS/Info.plist"
+APP_LOG_FILE="${AUTOCUT_STUDIO_APP_LOG:-/tmp/autocutstudio-app.log}"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build --package-path "$PACKAGE_DIR"
 BUILD_BINARY="$(swift build --package-path "$PACKAGE_DIR" --show-bin-path)/$APP_NAME"
 
-rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS"
-cp "$BUILD_BINARY" "$APP_BINARY"
-chmod +x "$APP_BINARY"
+/usr/bin/xattr -cr "$PACKAGE_DIR/.build" 2>/dev/null || true
+/usr/bin/codesign --force --sign - --identifier "$BUNDLE_ID" "$BUILD_BINARY" >/dev/null 2>&1 || true
 
-cat >"$INFO_PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleExecutable</key>
-  <string>$APP_NAME</string>
-  <key>CFBundleIdentifier</key>
-  <string>$BUNDLE_ID</string>
-  <key>CFBundleName</key>
-  <string>$APP_NAME</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>$MIN_SYSTEM_VERSION</string>
-  <key>NSPrincipalClass</key>
-  <string>NSApplication</string>
-  <key>AutoCutRepoRoot</key>
-  <string>$ROOT_DIR</string>
-</dict>
-</plist>
-PLIST
+wait_for_app() {
+  for _ in {1..20}; do
+    if pgrep -x "$APP_NAME" >/dev/null; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
 
 open_app() {
-  /usr/bin/open -n "$APP_BUNDLE"
+  cd "$ROOT_DIR"
+  AUTOCUT_REPO_ROOT="$ROOT_DIR" nohup "$BUILD_BINARY" >"$APP_LOG_FILE" 2>&1 &
 }
 
 case "$MODE" in
@@ -57,7 +37,8 @@ case "$MODE" in
     open_app
     ;;
   --debug|debug)
-    lldb -- "$APP_BINARY"
+    cd "$ROOT_DIR"
+    AUTOCUT_REPO_ROOT="$ROOT_DIR" lldb -- "$BUILD_BINARY"
     ;;
   --logs|logs)
     open_app
@@ -69,8 +50,7 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    wait_for_app
     ;;
   *)
     echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
