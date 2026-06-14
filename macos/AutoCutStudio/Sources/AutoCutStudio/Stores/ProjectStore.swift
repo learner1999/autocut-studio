@@ -24,6 +24,7 @@ final class ProjectStore: ObservableObject {
     @Published var timelineScrollRequest: TimelineScrollRequest?
 
     private let backend = PythonBackend()
+    private let audioAnalyzer = AudioAnalyzer()
     private let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -54,7 +55,7 @@ final class ProjectStore: ObservableObject {
 
     func importAudio(_ url: URL) async {
         await runTask("Probing audio...") {
-            let probe = try await backend.probe(mediaURL: url)
+            let probe = try await audioAnalyzer.probe(mediaURL: url)
             let emptyProject = AutoCutProject(
                 version: 1,
                 mediaPath: probe.mediaPath,
@@ -66,7 +67,8 @@ final class ProjectStore: ObservableObject {
             projectURL = nil
             selectedSegmentID = nil
             playheadTime = 0
-            waveform = try await backend.waveform(
+            statusMessage = "Generating waveform..."
+            waveform = try await audioAnalyzer.waveform(
                 mediaURL: url,
                 samples: Self.waveformSampleCount(for: probe.duration)
             )
@@ -83,7 +85,8 @@ final class ProjectStore: ObservableObject {
             selectedSegmentID = project?.segments.first?.id
             playheadTime = project?.segments.first?.start ?? 0
             if let mediaURL {
-                waveform = try await backend.waveform(
+                statusMessage = "Generating waveform..."
+                waveform = try await audioAnalyzer.waveform(
                     mediaURL: mediaURL,
                     samples: Self.waveformSampleCount(for: loadedProject.duration)
                 )
