@@ -19,12 +19,13 @@ def read_version() -> str:
 requirements = [
     "ffmpeg-python",
     "moviepy<2",
+    "numpy<2",
     "openai-whisper",
     "opencc-python-reimplemented",
     "parameterized",
     "pydub",
     "srt",
-    "torchaudio",
+    "torch<3",
     "tqdm",
 ]
 

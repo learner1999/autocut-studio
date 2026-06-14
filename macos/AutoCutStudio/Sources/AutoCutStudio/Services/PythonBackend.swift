@@ -19,6 +19,7 @@ final class PythonBackend {
 
     private let repositoryRoot: URL
     private let python: URL
+    private static let repositoryRootEnvironmentKey = "AUTOCUT_REPO_ROOT"
     private static let progressPrefix = "AUTOCUT_PROGRESS "
 
     init(repositoryRoot: URL = PythonBackend.defaultRepositoryRoot()) {
@@ -123,6 +124,10 @@ final class PythonBackend {
         let python = self.python
         let repositoryRoot = self.repositoryRoot
         return try await Task.detached(priority: .userInitiated) {
+            guard FileManager.default.fileExists(atPath: python.path) else {
+                throw BackendError.processFailed("Python backend executable was not found at \(python.path).")
+            }
+
             let process = Process()
             process.executableURL = python
             process.arguments = ["-m", "autocut.app_backend"] + arguments
@@ -166,7 +171,7 @@ final class PythonBackend {
             } catch {
                 stdout.fileHandleForReading.readabilityHandler = nil
                 stderr.fileHandleForReading.readabilityHandler = nil
-                throw BackendError.processFailed(error.localizedDescription)
+                throw BackendError.processFailed("Could not start Python backend at \(python.path): \(error.localizedDescription)")
             }
             process.waitUntilExit()
 
@@ -248,19 +253,77 @@ final class PythonBackend {
     }
 
     private static func defaultRepositoryRoot() -> URL {
-        if let path = Bundle.main.object(forInfoDictionaryKey: "AutoCutRepoRoot") as? String, !path.isEmpty {
+        repositoryRoot(
+            environment: ProcessInfo.processInfo.environment,
+            bundleRepositoryRoot: Bundle.main.object(forInfoDictionaryKey: "AutoCutRepoRoot") as? String,
+            executableURL: Bundle.main.executableURL,
+            currentDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        )
+    }
+
+    static func repositoryRoot(
+        environment: [String: String],
+        bundleRepositoryRoot: String? = nil,
+        executableURL: URL?,
+        currentDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> URL {
+        if let path = environment[repositoryRootEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !path.isEmpty {
             return URL(fileURLWithPath: path)
         }
-        let executable = Bundle.main.executableURL
-        if let root = executable?
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent() {
+
+        if let path = bundleRepositoryRoot?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+
+        let searchRoots = [
+            executableURL?.deletingLastPathComponent(),
+            currentDirectory,
+        ].compactMap { $0 }
+
+        if let root = firstExistingRepositoryRoot(startingAt: searchRoots, fileManager: fileManager) {
             return root
         }
-        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+
+        return executableURLFallback(executableURL: executableURL) ?? currentDirectory
+    }
+
+    private static func firstExistingRepositoryRoot(
+        startingAt candidates: [URL],
+        fileManager: FileManager
+    ) -> URL? {
+        for candidate in candidates {
+            var directory = candidate
+            for _ in 0..<12 {
+                if isRepositoryRoot(directory, fileManager: fileManager) {
+                    return directory
+                }
+
+                let parent = directory.deletingLastPathComponent()
+                if parent.path == directory.path {
+                    break
+                }
+                directory = parent
+            }
+        }
+
+        return nil
+    }
+
+    private static func isRepositoryRoot(_ url: URL, fileManager: FileManager) -> Bool {
+        fileManager.fileExists(atPath: url.appendingPathComponent(".venv/bin/python").path)
+            && fileManager.fileExists(atPath: url.appendingPathComponent("autocut/app_backend.py").path)
+    }
+
+    private static func executableURLFallback(executableURL: URL?) -> URL? {
+        executableURL?
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 
     static func backendEnvironment(

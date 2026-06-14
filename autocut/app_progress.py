@@ -1,5 +1,7 @@
 """Progress events for the AutoCut Studio JSON backend."""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 import json
 import sys

@@ -1,33 +1,22 @@
 # Added for AutoCut Studio: JSON backend used by the native macOS app.
 
+from __future__ import annotations
+
 import argparse
+import array
 from contextlib import redirect_stdout
 import json
+import math
 import os
 import subprocess
 import sys
 from datetime import timedelta
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
-import numpy as np
-import srt
+if TYPE_CHECKING:
+    import srt
 
-from . import utils
-from .app_project import (
-    AutoCutProject,
-    ProjectSettings,
-    ProjectSegment,
-    export_audio,
-    export_md,
-    export_srt,
-    load_project,
-    project_from_srt_md,
-    project_from_subtitles,
-    project_to_dict,
-    save_project,
-    selected_ranges,
-)
-from .app_progress import ProgressEmitter, install_progress_tqdm
+    from .app_project import AutoCutProject
 
 
 def _print_json(payload: Dict[str, Any]) -> None:
@@ -68,26 +57,55 @@ def _ffprobe(media_path: str) -> Dict[str, Any]:
 
 
 def _waveform(media_path: str, samples: int) -> Dict[str, Any]:
-    audio = utils.load_audio(media_path, sr=8000)
-    if len(audio) == 0:
+    cmd = [
+        "ffmpeg",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        media_path,
+        "-f",
+        "s16le",
+        "-acodec",
+        "pcm_s16le",
+        "-ac",
+        "1",
+        "-ar",
+        "8000",
+        "-",
+    ]
+    raw = subprocess.check_output(cmd)
+    audio = array.array("h")
+    audio.frombytes(raw)
+    if sys.byteorder != "little":
+        audio.byteswap()
+
+    if not audio:
         peaks: List[float] = []
     else:
-        bucket_size = max(1, int(np.ceil(len(audio) / max(samples, 1))))
-        remainder = len(audio) % bucket_size
-        padded = np.pad(audio, (0, 0 if remainder == 0 else bucket_size - remainder))
-        buckets = padded.reshape(-1, bucket_size)
-        peaks = np.max(np.abs(buckets), axis=1).astype(float).tolist()
+        bucket_size = max(1, math.ceil(len(audio) / max(samples, 1)))
+        peaks = [
+            min(
+                1.0,
+                max(abs(sample) for sample in audio[offset : offset + bucket_size])
+                / 32768.0,
+            )
+            for offset in range(0, len(audio), bucket_size)
+        ]
     return {"mediaPath": os.path.abspath(media_path), "samples": peaks}
 
 
 def _detect_silence_ranges(
-    audio: np.ndarray,
+    audio: Any,
     sampling_rate: int,
     duration: float,
     min_silence: float = 0.80,
     frame_seconds: float = 0.05,
     hop_seconds: float = 0.025,
 ) -> List[tuple[float, float]]:
+    import numpy as np
+
     if len(audio) == 0:
         return []
 
@@ -130,6 +148,9 @@ def _detect_silence_ranges(
 def _transcribe(
     media_path: str, args: argparse.Namespace, progress: ProgressEmitter
 ) -> AutoCutProject:
+    from . import utils
+    from .app_progress import install_progress_tqdm
+    from .app_project import ProjectSettings, project_from_subtitles
     from .package_transcribe import Transcribe
 
     sampling_rate = 16000
@@ -170,6 +191,8 @@ def _transcribe(
 def _retranscribe_range(
     media_path: str, args: argparse.Namespace, progress: ProgressEmitter
 ) -> Dict[str, Any]:
+    from . import utils
+    from .app_progress import install_progress_tqdm
     from .package_transcribe import Transcribe
 
     sampling_rate = 16000
@@ -210,6 +233,8 @@ def _retranscribe_range(
 
 
 def _project_to_subtitles(project: AutoCutProject) -> List[srt.Subtitle]:
+    import srt
+
     subtitles = []
     for index, segment in enumerate(project.segments, start=1):
         subtitles.append(
@@ -286,31 +311,46 @@ def main() -> None:
     elif args.command == "waveform":
         _print_json(_waveform(args.media, args.samples))
     elif args.command == "transcribe":
+        from .app_progress import ProgressEmitter
+        from .app_project import project_to_dict, save_project
+
         progress = ProgressEmitter(args.progress)
         project = _transcribe(args.media, args, progress)
         if args.output:
             save_project(project, args.output)
         _print_json(project_to_dict(project))
     elif args.command == "retranscribe-range":
+        from .app_progress import ProgressEmitter
+
         progress = ProgressEmitter(args.progress)
         _print_json(_retranscribe_range(args.media, args, progress))
     elif args.command == "project-from-srt":
+        from .app_project import project_from_srt_md, project_to_dict, save_project
+
         duration = _ffprobe(args.media)["duration"]
         project = project_from_srt_md(args.media, duration, args.srt, args.md)
         if args.output:
             save_project(project, args.output)
         _print_json(project_to_dict(project))
     elif args.command == "ranges":
+        from .app_project import load_project, selected_ranges
+
         project = load_project(args.project)
         _print_json({"ranges": selected_ranges(project)})
     elif args.command == "export":
+        from .app_project import export_audio, load_project
+
         with redirect_stdout(sys.stderr):
             export_audio(load_project(args.project), args.output)
         _print_json({"output": os.path.abspath(args.output)})
     elif args.command == "export-srt":
+        from .app_project import export_srt, load_project
+
         export_srt(load_project(args.project), args.output)
         _print_json({"output": os.path.abspath(args.output)})
     elif args.command == "export-md":
+        from .app_project import export_md, load_project
+
         export_md(load_project(args.project), args.output)
         _print_json({"output": os.path.abspath(args.output)})
 

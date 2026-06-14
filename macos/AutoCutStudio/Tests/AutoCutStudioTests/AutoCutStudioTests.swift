@@ -142,6 +142,45 @@ final class AutoCutStudioTests: XCTestCase {
         XCTAssertTrue(environment["PATH"]?.contains("/usr/bin:/bin") == true)
     }
 
+    func testPythonBackendRepositoryRootPrefersLaunchEnvironment() {
+        let root = PythonBackend.repositoryRoot(
+            environment: ["AUTOCUT_REPO_ROOT": "/tmp/autocut-studio"],
+            executableURL: URL(fileURLWithPath: "/tmp/other/.build/debug/AutoCutStudio"),
+            currentDirectory: URL(fileURLWithPath: "/tmp/other")
+        )
+
+        XCTAssertEqual(root.path, "/tmp/autocut-studio")
+    }
+
+    func testPythonBackendRepositoryRootWalksUpToProjectMarkers() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        let executableDirectory = temporaryRoot
+            .appendingPathComponent("macos/AutoCutStudio/.build/debug")
+        try FileManager.default.createDirectory(
+            at: temporaryRoot.appendingPathComponent(".venv/bin"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: temporaryRoot.appendingPathComponent("autocut"),
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: temporaryRoot.appendingPathComponent(".venv/bin/python"))
+        try Data().write(to: temporaryRoot.appendingPathComponent("autocut/app_backend.py"))
+        try FileManager.default.createDirectory(at: executableDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: temporaryRoot)
+        }
+
+        let root = PythonBackend.repositoryRoot(
+            environment: [:],
+            executableURL: executableDirectory.appendingPathComponent("AutoCutStudio"),
+            currentDirectory: URL(fileURLWithPath: "/tmp")
+        )
+
+        XCTAssertEqual(root.path, temporaryRoot.path)
+    }
+
     func testPythonBackendParsesProgressEventsFromStderr() throws {
         let progress = try XCTUnwrap(PythonBackend.progressEvent(
             fromStderrLine: #"AUTOCUT_PROGRESS {"stage":"transcribing","progress":0.42,"message":"Transcribing 42%"}"#

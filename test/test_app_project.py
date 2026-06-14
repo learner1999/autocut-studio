@@ -329,6 +329,32 @@ class TestAppProject(unittest.TestCase):
         self.assertTrue(result.stdout.strip().startswith("{"))
         self.assertNotIn("MoviePy", result.stdout)
 
+    def test_backend_import_does_not_load_audio_dependencies(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; "
+                    "import autocut.app_backend; "
+                    "print('numpy' in sys.modules); "
+                    "print('autocut.utils' in sys.modules); "
+                    "print('autocut.app_progress' in sys.modules); "
+                    "print('autocut.app_project' in sys.modules); "
+                    "print('srt' in sys.modules); "
+                    "print('zlib' in sys.modules)"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        self.assertEqual(
+            result.stdout.strip().splitlines(),
+            ["False", "False", "False", "False", "False", "False"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
